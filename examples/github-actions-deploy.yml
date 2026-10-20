@@ -1,0 +1,42 @@
+# Example deploy workflow for the multi-account example. Copy it to the
+# application repository as .github/workflows/deploy.yml.
+#
+# Hop 1: GitHub OIDC -> pipeline role (no stored AWS keys).
+# Hop 2: xacct reads the ExternalId from SSM as the pipeline role and assumes
+#        the deploy role in the target account, with session tags for CloudTrail.
+
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write # required for the OIDC token
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: prod # the trust policy only accepts sub = repo:<owner>/<repo>:environment:prod
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.PIPELINE_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - run: pip install "xacct @ git+https://github.com/johnvega-cloud/terraform-aws-cicd-cross-account-role@v1.0.0"
+
+      - name: Assume the deploy role
+        run: |
+          xacct assume \
+            --role-arn "${{ vars.DEPLOY_ROLE_ARN }}" \
+            --external-id-ssm "${{ vars.EXTERNAL_ID_PARAMETER }}" \
+            --ci-tags --region us-east-1 --format github-env
+
+      - name: Deploy (runs as the deploy role)
+        run: |
+          aws sts get-caller-identity
+          # docker build / push to ECR, aws ecs update-service ...

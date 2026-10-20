@@ -1,0 +1,8 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    { "Sid": "TooWide", "Effect": "Allow", "Action": ["s3:*", "ecr:*"], "Resource": "*" },
+    { "Sid": "PassAnything", "Effect": "Allow", "Action": "iam:PassRole", "Resource": "*" },
+    { "Sid": "Escalate", "Effect": "Allow", "Action": "iam:PutRolePolicy", "Resource": "*" }
+  ]
+}

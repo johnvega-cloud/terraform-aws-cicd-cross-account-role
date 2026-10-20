@@ -1,0 +1,7 @@
+app                      = "orders-api"
+target_admin_role_arn    = "arn:aws:iam::222222222222:role/OrganizationAccountAccessRole"
+github_oidc_provider_arn = "arn:aws:iam::111111111111:oidc-provider/token.actions.githubusercontent.com"
+github_repository        = "acme/orders-api"
+github_environment       = "prod"
+organization_id          = "o-abc123def4"
+ecs_cluster              = "prod"
