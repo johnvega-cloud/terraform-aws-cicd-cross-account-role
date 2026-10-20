@@ -1,0 +1,141 @@
+# CI: Terraform (fmt, validate, test, tflint, checkov) and Python (ruff, mypy,
+# pytest, policy lint) on every push/PR. Nothing here touches AWS: Terraform
+# tests use a mock provider and Python tests use moto and in-memory fakes.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TF_VERSION: 1.14.7
+  TF_IN_AUTOMATION: "true"
+
+jobs:
+  terraform-fmt:
+    name: terraform fmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - run: terraform fmt -check -recursive -diff
+
+  terraform-validate:
+    name: validate (${{ matrix.dir }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        dir: [modules/deploy-role, modules/pipeline-role, examples/multi-account, e2e/aws]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - working-directory: ${{ matrix.dir }}
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+  terraform-test:
+    name: terraform test (${{ matrix.module }}, mocked AWS)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        module: [deploy-role, pipeline-role]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+      - working-directory: modules/${{ matrix.module }}
+        run: |
+          terraform init -backend=false -input=false
+          terraform test
+
+  tflint:
+    name: tflint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: terraform-linters/setup-tflint@v6
+        with:
+          tflint_version: v0.64.0
+      - run: tflint --init
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+      - run: tflint --recursive --config "$GITHUB_WORKSPACE/.tflint.hcl" --format compact
+
+  checkov:
+    name: checkov (security)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - run: pip install checkov==3.3.9
+      # e2e/ is a throwaway test harness (unversioned, force-destroy bucket/repo): not scanned.
+      - run: checkov -d . --framework terraform --compact --quiet --skip-path e2e
+
+  python-lint:
+    name: ruff + mypy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy
+
+  python-test:
+    name: pytest (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: pytest
+
+  # The hybrid step: Python lints the policies Terraform renders. Here it runs
+  # on the committed policy examples; in a pipeline with credentials, run it on
+  # `terraform show -json tfplan` and on the live roles after apply (README).
+  policy-lint:
+    name: xacct lint (example policies)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+          cache: pip
+      - run: pip install .
+      - run: xacct lint --trust examples/policies/deploy-trust.json --policy examples/policies/deploy-permissions.json --account-id 222222222222 --fail-on medium
+      - name: a deliberately bad policy must fail
+        run: |
+          set +e
+          xacct lint --policy examples/policies/bad-permissions.json
+          test $? -eq 3
