@@ -74,8 +74,8 @@ run "trust_pins_account_role_and_external_id" {
   }
 
   assert {
-    condition     = data.aws_iam_policy_document.trust.statement[0].actions == toset(["sts:AssumeRole"])
-    error_message = "Without allow_session_tags only sts:AssumeRole is trusted."
+    condition     = length(data.aws_iam_policy_document.trust.statement) == 1
+    error_message = "Without allow_session_tags there is no TagSession statement."
   }
 
   assert {
@@ -126,8 +126,28 @@ run "org_condition_and_session_tags" {
   }
 
   assert {
-    condition     = data.aws_iam_policy_document.trust.statement[0].actions == toset(["sts:AssumeRole", "sts:TagSession"])
-    error_message = "allow_session_tags must add sts:TagSession."
+    condition     = data.aws_iam_policy_document.trust.statement[0].actions == toset(["sts:AssumeRole"])
+    error_message = "The ExternalId statement must only allow sts:AssumeRole."
+  }
+
+  assert {
+    condition     = data.aws_iam_policy_document.trust.statement[1].actions == toset(["sts:TagSession"])
+    error_message = "allow_session_tags must add a separate sts:TagSession statement (no ExternalId key in its context)."
+  }
+
+  assert {
+    condition = alltrue([
+      for c in data.aws_iam_policy_document.trust.statement[1].condition : c.variable != "sts:ExternalId"
+    ])
+    error_message = "The TagSession statement must not test sts:ExternalId."
+  }
+
+  assert {
+    condition = anytrue([
+      for c in data.aws_iam_policy_document.trust.statement[1].condition :
+      c.variable == "aws:PrincipalArn" && c.values == tolist(var.trusted_role_arns)
+    ])
+    error_message = "TagSession must still be pinned to the pipeline role."
   }
 }
 

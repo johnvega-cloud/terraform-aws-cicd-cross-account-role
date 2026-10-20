@@ -19,8 +19,6 @@ locals {
 
   role_arn = "arn:${local.partition}:iam::${data.aws_caller_identity.current.account_id}:role${var.path}${var.name}"
 
-  trust_actions = var.allow_session_tags ? ["sts:AssumeRole", "sts:TagSession"] : ["sts:AssumeRole"]
-
   # Global services: their API calls are not tied to a region, so a region
   # guardrail must not block them.
   global_actions = [
@@ -45,7 +43,7 @@ data "aws_iam_policy_document" "trust" {
   statement {
     sid     = "PipelineRoleWithExternalId"
     effect  = "Allow"
-    actions = local.trust_actions
+    actions = ["sts:AssumeRole"]
 
     principals {
       type        = "AWS"
@@ -70,6 +68,40 @@ data "aws_iam_policy_document" "trust" {
         test     = "StringEquals"
         variable = "aws:PrincipalOrgID"
         values   = [condition.value]
+      }
+    }
+  }
+
+  # sts:TagSession is evaluated as its own action, and the sts:ExternalId key is
+  # not in its request context: putting it in the statement above (with the
+  # ExternalId condition) makes every AssumeRole with tags fail. Found in the
+  # real-AWS e2e run. TagSession alone grants nothing; AssumeRole still needs
+  # the ExternalId.
+  dynamic "statement" {
+    for_each = var.allow_session_tags ? [1] : []
+    content {
+      sid     = "PipelineRoleSessionTags"
+      effect  = "Allow"
+      actions = ["sts:TagSession"]
+
+      principals {
+        type        = "AWS"
+        identifiers = local.trusted_account_roots
+      }
+
+      condition {
+        test     = "ArnEquals"
+        variable = "aws:PrincipalArn"
+        values   = var.trusted_role_arns
+      }
+
+      dynamic "condition" {
+        for_each = var.principal_org_id == null ? [] : [var.principal_org_id]
+        content {
+          test     = "StringEquals"
+          variable = "aws:PrincipalOrgID"
+          values   = [condition.value]
+        }
       }
     }
   }

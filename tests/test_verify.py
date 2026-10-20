@@ -138,7 +138,7 @@ def test_permissions_allowed_and_denied(world: FakeWorld) -> None:
         {
             "ContextKeyName": "aws:RequestedRegion",
             "ContextKeyValues": ["eu-west-1"],
-            "ContextKeyType": "stringList",
+            "ContextKeyType": "string",
         }
     ]
     assert results[3].name == "denied: ec2:RunInstances on * [aws:RequestedRegion=eu-west-1]"

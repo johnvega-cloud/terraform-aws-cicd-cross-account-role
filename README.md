@@ -320,11 +320,38 @@ fmt/validate/test, tflint, checkov, ruff, mypy, pytest on Python 3.11 and 3.13,
 and `xacct lint` on the example policies (a deliberately bad one must fail).
 `main` is protected: changes go through a PR and must pass CI.
 
-### Tested against real AWS
+### Tested against real AWS (2026-10-20, single account, us-east-1)
 
-**Not yet.** The real-account run ([e2e/aws/](e2e/aws/README.md)) is written
-but has not been executed. Until it is, everything above is proven only by the
-mocked Terraform tests and the Python tests.
+The [e2e harness](e2e/aws/README.md) deployed both modules (11 resources),
+was checked as below, and was destroyed with nothing left behind. One account
+played both the tooling and the target role: STS evaluates the trust policy
+the same way across accounts.
+
+| Check | Result |
+|---|---|
+| `xacct verify` trust (real STS) | 5/5: pipeline reached; no ExternalId refused; wrong ExternalId refused; correct one accepted **with session tags**; the IAM user (who has `sts:AssumeRole *`) refused even with the right ExternalId |
+| `xacct verify` permissions (IAM simulator) | 15/15: 5 allowed, 10 denied (3 by explicit guardrail deny: `iam:CreateUser`, `iam:PutRolePolicy` on itself, `cloudtrail:StopLogging`; 1 by the region deny) |
+| `xacct lint --role ... --access-analyzer` on the live roles | 5 documents, 0 findings |
+| Real calls as the deploy role | S3 put/list under `artifacts/` OK; put under `other/` and list of the bucket root AccessDenied; ECR login OK in us-east-1, explicit deny in eu-west-1; `iam create-user` explicit deny; `DeleteBucket` AccessDenied |
+| `terraform plan -detailed-exitcode` after apply | `0` (idempotent) |
+
+The first run failed 3 of 20 checks and found two bugs that no mocked test
+could show (both fixed, with tests):
+
+1. **Session tags broke AssumeRole.** `sts:TagSession` was in the same trust
+   statement as the `sts:ExternalId` condition. STS evaluates `TagSession` as
+   its own action, without the `sts:ExternalId` key, so every AssumeRole that
+   carried tags was refused. It now has its own statement, still pinned to the
+   pipeline role.
+2. **`xacct verify` skipped conditions in the simulator.** Context values were
+   sent as `stringList` (multi-valued); plain operators such as `StringLike`
+   and `StringNotEquals` do not match multi-valued keys, so the `s3:prefix`
+   allow and the region deny were ignored. Single values are now sent as
+   `string`.
+
+Not tested for real: a GitHub Actions job assuming the pipeline role through
+OIDC (the harness starts the chain from an IAM user), and two separate AWS
+accounts.
 
 ## License
 

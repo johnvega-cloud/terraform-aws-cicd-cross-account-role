@@ -184,8 +184,16 @@ def _simulate(iam: Any, role_arn: str, check: ActionCheck) -> str:
         "ResourceArns": [check.resource],
     }
     if check.context:
+        # One value -> "string". A "stringList" makes the key multi-valued, and
+        # plain operators (StringLike, StringNotEquals) do not match multi-valued
+        # keys, so the simulator would skip conditions like s3:prefix or
+        # aws:RequestedRegion. Found in the real-AWS e2e run.
         params["ContextEntries"] = [
-            {"ContextKeyName": k, "ContextKeyValues": v, "ContextKeyType": "stringList"}
+            {
+                "ContextKeyName": k,
+                "ContextKeyValues": v,
+                "ContextKeyType": "string" if len(v) == 1 else "stringList",
+            }
             for k, v in check.context.items()
         ]
     decisions: list[str] = []
