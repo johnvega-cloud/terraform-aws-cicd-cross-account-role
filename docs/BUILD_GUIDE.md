@@ -26,7 +26,7 @@ This guide covers the project in two orders:
 | 9 | `examples/`, `e2e/aws/` | Multi-account example, real-AWS harness | Show the modules wired together the way a team would. |
 | 10 | `.github/workflows/ci.yml` | Terraform + Python checks, policy lint on examples | Turns steps 2–9 into a gate for `main`. |
 | 11 | `README.md`, `docs/` | Usage, security, diagram, this guide | Documents what was actually built, so it is written last. |
-| 12 | — | Run `e2e/aws` in a real account: plan lint, apply, `xacct verify`, live lint, real S3/ECR calls, idempotent plan, destroy | Mocks do not enforce IAM. Only STS can prove that a wrong ExternalId is refused. **Pending.** |
+| 12 | — | Run `e2e/aws` in a real account: plan lint, apply, `xacct verify`, live lint, real S3/ECR calls, idempotent plan, destroy | Mocks do not enforce IAM. Only STS can prove that a wrong ExternalId is refused. Done 2026-10-20: 20/20 checks after fixing two bugs the run found (see decisions). |
 
 ### Key decisions made in step 0
 
@@ -40,6 +40,8 @@ This guide covers the project in two orders:
 | Permissions shape | `policy_statements` objects, rendered as an inline policy | Reviewable in a PR, lives and dies with the role, cannot be attached elsewhere. Wildcard Allow actions are rejected by validation. |
 | Guardrails | Separate inline policy of explicit Denies, on by default | A Deny wins over any Allow, so a permission added later by mistake still cannot disable CloudTrail, create IAM users or edit this role. |
 | Region limit | Deny `NotAction` global services when `aws:RequestedRegion` not in the list | Blocks regional resources in unexpected regions without breaking IAM/STS/CloudFront calls, which are global. |
+| Session tags in the trust | `sts:TagSession` in its own statement, pinned by `aws:PrincipalArn`, without the ExternalId condition | Found in the real run: STS evaluates `TagSession` separately and the `sts:ExternalId` key is not in its context, so one shared statement refuses every tagged AssumeRole. TagSession alone grants nothing. |
+| Simulator context type | `string` for one value, `stringList` for several | Found in the real run: with `stringList` the key is multi-valued and plain `StringLike`/`StringNotEquals` conditions are skipped, which hid the region deny. |
 | Session length | 1 h max on the role, 15 min default in `xacct assume` | A deploy rarely needs more; role chaining caps it at 1 h anyway. |
 | Why Python as well | `assume` (outside GitHub Actions too, `credential_process`), `lint` (plan + live), `verify` (negative tests) | Terraform can declare the roles but cannot prove that STS refuses the wrong caller. |
 | Lint vs Access Analyzer | Own rules + optional `ValidatePolicy` | Access Analyzer checks grammar and generic security warnings; the own rules know the CI/CD intent (ExternalId required, OIDC `sub`, PassRole, escalation). |
