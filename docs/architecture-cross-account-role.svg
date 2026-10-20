@@ -1,0 +1,155 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1660 920" width="1660" height="920" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <title>terraform-aws-cicd-cross-account-role: reference architecture</title>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#232F3E"/>
+    </marker>
+    <marker id="arrow-red" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#D13212"/>
+    </marker>
+    <style>
+      .t  { fill: #232F3E; }
+      .mu { fill: #545B64; }
+      .mono { font-family: 'SFMono-Regular', Menlo, Consolas, monospace; font-size: 12.5px; fill: #232F3E; }
+      .icon-label { fill: #FFFFFF; font-weight: 700; font-size: 13px; }
+      .solid { stroke: #232F3E; stroke-width: 2.2; fill: none; }
+      .dash  { stroke: #232F3E; stroke-width: 2; fill: none; stroke-dasharray: 7 5; }
+      .deny  { stroke: #D13212; stroke-width: 2; fill: none; stroke-dasharray: 6 4; }
+    </style>
+  </defs>
+
+  <!-- White canvas so the diagram stays legible on GitHub dark mode -->
+  <rect width="1660" height="920" fill="#FFFFFF"/>
+
+  <text x="30" y="42" class="t" font-size="26" font-weight="700">terraform-aws-cicd-cross-account-role — reference architecture</text>
+  <text x="30" y="68" class="mu" font-size="14">Two hops, no long-lived keys: GitHub OIDC → pipeline role (tooling account) → deploy role (target account, ExternalId). Terraform builds both roles; xacct assumes, lints and verifies them.</text>
+
+  <!-- ================= GitHub (x 30-390) ================= -->
+  <rect x="30" y="110" width="372" height="270" rx="10" fill="#F6F8FA" stroke="#24292F" stroke-width="2"/>
+  <text x="50" y="140" class="t" font-size="17" font-weight="700">GitHub Actions</text>
+  <text x="50" y="164" class="mu" font-size="13">repo acme/orders-api · environment prod</text>
+  <rect x="45" y="182" width="342" height="76" rx="6" fill="#FFFFFF" stroke="#545B64"/>
+  <text x="57" y="204" class="t" font-size="13" font-weight="700">1. OIDC token (JWT)</text>
+  <text x="57" y="225" class="mono">aud = sts.amazonaws.com</text>
+  <text x="57" y="244" class="mono">sub = repo:acme/orders-api:environment:prod</text>
+  <rect x="45" y="276" width="342" height="88" rx="6" fill="#FFFFFF" stroke="#545B64"/>
+  <text x="57" y="298" class="t" font-size="13" font-weight="700">3. xacct assume</text>
+  <text x="57" y="319" class="mono">--role-arn &lt;deploy role&gt;</text>
+  <text x="57" y="338" class="mono">--external-id-ssm /cicd/app/external-id</text>
+  <text x="57" y="357" class="mono">--ci-tags --format github-env</text>
+
+  <!-- ================= Tooling account (x 490-1010) ================= -->
+  <rect x="490" y="110" width="520" height="440" fill="none" stroke="#E7157B" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="505" y="134" fill="#E7157B" font-size="16" font-weight="700">Tooling / CI account (111111111111)</text>
+
+  <rect x="515" y="155" width="56" height="56" rx="8" fill="#DD344C"/>
+  <text x="543" y="188" text-anchor="middle" class="icon-label">IAM</text>
+  <text x="582" y="177" class="t" font-size="15" font-weight="700">Pipeline role</text>
+  <text x="582" y="197" class="mu" font-size="13">modules/pipeline-role</text>
+
+  <text x="515" y="240" class="t" font-size="13" font-weight="700">Trust</text>
+  <text x="515" y="260" class="mono">Federated: token.actions.githubusercontent.com</text>
+  <text x="515" y="279" class="mono">aud = sts.amazonaws.com</text>
+  <text x="515" y="298" class="mono">sub = exactly one repo + environment/branch</text>
+  <text x="515" y="330" class="t" font-size="13" font-weight="700">Permissions (nothing else)</text>
+  <text x="515" y="350" class="mono">sts:AssumeRole, sts:TagSession → exact deploy role ARNs</text>
+  <text x="515" y="369" class="mono">ssm:GetParameter → the ExternalId parameter</text>
+
+  <rect x="515" y="400" width="56" height="56" rx="8" fill="#E7157B"/>
+  <text x="543" y="433" text-anchor="middle" class="icon-label">SSM</text>
+  <text x="582" y="422" class="t" font-size="15" font-weight="700">ExternalId parameter</text>
+  <text x="582" y="442" class="mu" font-size="13">SecureString · random_password, 40 characters</text>
+  <text x="515" y="490" class="mu" font-size="13">Written by Terraform, read at run time by the pipeline role only.</text>
+  <text x="515" y="510" class="mu" font-size="13">Never in the workflow file or the repository.</text>
+
+  <!-- ================= Target account (x 1110-1630) ================= -->
+  <rect x="1110" y="110" width="520" height="560" fill="none" stroke="#00A4A6" stroke-width="2" stroke-dasharray="9 6"/>
+  <text x="1125" y="134" fill="#00A4A6" font-size="16" font-weight="700">Target / workload account (222222222222)</text>
+
+  <rect x="1135" y="155" width="56" height="56" rx="8" fill="#DD344C"/>
+  <text x="1163" y="188" text-anchor="middle" class="icon-label">IAM</text>
+  <text x="1202" y="177" class="t" font-size="15" font-weight="700">Deploy role</text>
+  <text x="1202" y="197" class="mu" font-size="13">modules/deploy-role · max session 1 h</text>
+
+  <text x="1135" y="240" class="t" font-size="13" font-weight="700">Trust (every condition must match)</text>
+  <text x="1135" y="260" class="mono">Principal: arn:aws:iam::111111111111:root</text>
+  <text x="1135" y="279" class="mono">aws:PrincipalArn = …:role/cicd/cicd-pipeline-app</text>
+  <text x="1135" y="298" class="mono">sts:ExternalId   = &lt;value from SSM&gt;</text>
+  <text x="1135" y="317" class="mono">aws:PrincipalOrgID = o-… (optional)</text>
+
+  <text x="1135" y="350" class="t" font-size="13" font-weight="700">Inline policy "deploy" (least privilege)</text>
+  <text x="1135" y="370" class="mono">ecr push → repository/orders-api</text>
+  <text x="1135" y="389" class="mono">ecs:UpdateService → service/prod/orders-api</text>
+  <text x="1135" y="408" class="mono">iam:PassRole → app task roles only,</text>
+  <text x="1135" y="427" class="mono">    iam:PassedToService = ecs-tasks</text>
+
+  <text x="1135" y="460" font-size="13" font-weight="700" fill="#D13212">Inline policy "guardrails" (explicit Deny)</text>
+  <text x="1135" y="480" class="mono">organizations:*, iam:CreateUser/AccessKey,</text>
+  <text x="1135" y="499" class="mono">cloudtrail:StopLogging, kms:ScheduleKeyDeletion…</text>
+  <text x="1135" y="518" class="mono">any change to this role itself</text>
+  <text x="1135" y="537" class="mono">regional actions outside allowed_regions</text>
+
+  <rect x="1135" y="560" width="56" height="56" rx="8" fill="#ED7100"/>
+  <text x="1163" y="593" text-anchor="middle" class="icon-label">ECR</text>
+  <rect x="1205" y="560" width="56" height="56" rx="8" fill="#ED7100"/>
+  <text x="1233" y="593" text-anchor="middle" class="icon-label">ECS</text>
+  <text x="1275" y="580" class="mu" font-size="13">4. The deploy step runs as the deploy role:</text>
+  <text x="1275" y="599" class="mu" font-size="13">1 h max, tagged with repo / ref / run id,</text>
+  <text x="1275" y="618" class="mu" font-size="13">so CloudTrail ties every call to its CI run.</text>
+
+  <!-- ================= Arrows ================= -->
+  <path d="M387,220 H510" class="solid" marker-end="url(#arrow)"/>
+  <text x="410" y="196" class="t" font-size="12" font-weight="700">2. AssumeRole</text>
+  <text x="410" y="211" class="t" font-size="12" font-weight="700">WithWebIdentity</text>
+
+  <path d="M387,338 C440,338 455,428 510,428" class="dash" marker-end="url(#arrow)"/>
+  <text x="400" y="448" class="mu" font-size="12">GetParameter</text>
+
+  <path d="M1010,183 H1130" class="solid" marker-end="url(#arrow)"/>
+  <text x="1022" y="172" class="t" font-size="12.5" font-weight="700">AssumeRole</text>
+  <text x="1022" y="203" class="mu" font-size="12">+ ExternalId</text>
+  <text x="1022" y="219" class="mu" font-size="12">+ session tags</text>
+
+  <!-- Refused paths -->
+  <rect x="490" y="585" width="380" height="82" rx="6" fill="#FDECEA" stroke="#D13212"/>
+  <text x="504" y="608" fill="#D13212" font-size="13" font-weight="700">Refused by STS (AccessDenied)</text>
+  <text x="504" y="630" class="mono">the pipeline role with no / a wrong ExternalId</text>
+  <text x="504" y="650" class="mono">any other principal, even with the right one</text>
+  <path d="M870,626 C990,626 1020,300 1130,300" class="deny" marker-end="url(#arrow-red)"/>
+
+  <!-- ================= Terraform + xacct band ================= -->
+  <rect x="30" y="705" width="1600" height="190" rx="10" fill="#F2F3F3" stroke="#545B64" stroke-width="1.5"/>
+  <text x="50" y="735" class="t" font-size="16" font-weight="700">Build and verify (the Terraform + Python hybrid)</text>
+
+  <rect x="50" y="755" width="350" height="120" rx="6" fill="#FFFFFF" stroke="#7B42BC" stroke-width="2"/>
+  <text x="64" y="779" fill="#7B42BC" font-size="14" font-weight="700">Terraform</text>
+  <text x="64" y="802" class="mono">two modules, two provider aliases</text>
+  <text x="64" y="821" class="mono">random_password → SSM + deploy trust</text>
+  <text x="64" y="840" class="mono">terraform test (mocked AWS)</text>
+
+  <path d="M400,815 H445" class="solid" marker-end="url(#arrow)"/>
+
+  <rect x="450" y="755" width="370" height="120" rx="6" fill="#FFFFFF" stroke="#3776AB" stroke-width="2"/>
+  <text x="464" y="779" fill="#3776AB" font-size="14" font-weight="700">xacct lint (before and after apply)</text>
+  <text x="464" y="802" class="mono">terraform show -json → policies</text>
+  <text x="464" y="821" class="mono">live roles · IAM Access Analyzer</text>
+  <text x="464" y="840" class="mono">wildcards, PassRole, escalation,</text>
+  <text x="464" y="859" class="mono">trust without ExternalId / OIDC sub</text>
+
+  <path d="M820,815 H865" class="solid" marker-end="url(#arrow)"/>
+
+  <rect x="870" y="755" width="370" height="120" rx="6" fill="#FFFFFF" stroke="#3776AB" stroke-width="2"/>
+  <text x="884" y="779" fill="#3776AB" font-size="14" font-weight="700">xacct verify (after apply)</text>
+  <text x="884" y="802" class="mono">real STS: no / wrong / right ExternalId,</text>
+  <text x="884" y="821" class="mono">non-pipeline principal refused</text>
+  <text x="884" y="840" class="mono">IAM policy simulator:</text>
+  <text x="884" y="859" class="mono">allowed vs denied actions</text>
+
+  <path d="M1240,815 H1285" class="solid" marker-end="url(#arrow)"/>
+
+  <rect x="1290" y="755" width="320" height="120" rx="6" fill="#FFFFFF" stroke="#3776AB" stroke-width="2"/>
+  <text x="1304" y="779" fill="#3776AB" font-size="14" font-weight="700">xacct assume (in CI)</text>
+  <text x="1304" y="802" class="mono">env · github-env (masked)</text>
+  <text x="1304" y="821" class="mono">credential_process · json</text>
+  <text x="1304" y="840" class="mono">session name = CI run id</text>
+</svg>
