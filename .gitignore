@@ -1,0 +1,53 @@
+# --- Terraform ---
+# Local provider/plugin cache (downloaded by `terraform init`)
+**/.terraform/*
+
+# State files: contain resource IDs and can contain secrets. NEVER commit.
+*.tfstate
+*.tfstate.*
+
+# Saved plans: binary, may contain sensitive values
+*.tfplan
+tfplan
+
+# Variable files: may contain secrets. Only *.tfvars.example files are committed
+*.tfvars
+*.tfvars.json
+
+# Local overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Crash logs and CLI config
+crash.log
+crash.*.log
+.terraformrc
+terraform.rc
+
+# Plan/state exports and terraform output: they contain account IDs, ARNs and the ExternalId
+plan.json
+out.json
+report.json
+
+# Lock files: committed only in e2e/ and examples/ (root configs), never in modules
+modules/**/.terraform.lock.hcl
+
+# --- Python / tooling ---
+.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+
+# --- OS / editors ---
+.DS_Store
+.idea/
+.vscode/
