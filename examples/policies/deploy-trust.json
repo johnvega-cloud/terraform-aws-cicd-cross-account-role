@@ -4,7 +4,7 @@
     {
       "Sid": "PipelineRoleWithExternalId",
       "Effect": "Allow",
-      "Action": ["sts:AssumeRole", "sts:TagSession"],
+      "Action": "sts:AssumeRole",
       "Principal": { "AWS": "arn:aws:iam::111111111111:root" },
       "Condition": {
         "ArnEquals": { "aws:PrincipalArn": "arn:aws:iam::111111111111:role/cicd/cicd-pipeline-orders-api" },
@@ -12,6 +12,16 @@
           "sts:ExternalId": "EXAMPLE-not-a-real-external-id-000000000",
           "aws:PrincipalOrgID": "o-abc123def4"
         }
+      }
+    },
+    {
+      "Sid": "PipelineRoleSessionTags",
+      "Effect": "Allow",
+      "Action": "sts:TagSession",
+      "Principal": { "AWS": "arn:aws:iam::111111111111:root" },
+      "Condition": {
+        "ArnEquals": { "aws:PrincipalArn": "arn:aws:iam::111111111111:role/cicd/cicd-pipeline-orders-api" },
+        "StringEquals": { "aws:PrincipalOrgID": "o-abc123def4" }
       }
     }
   ]
