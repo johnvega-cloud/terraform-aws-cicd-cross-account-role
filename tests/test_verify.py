@@ -12,7 +12,6 @@ from xacct.verify import (
     Expectations,
     check_permissions,
     check_trust,
-    summary,
 )
 
 
@@ -40,7 +39,7 @@ def test_trust_via_role_adds_untrusted_check(world: FakeWorld) -> None:
         tags={"ci-run-id": "1"},
         session_from_creds=world.from_creds,
     )
-    assert all(r.passed for r in results), summary(results)
+    assert all(r.passed for r in results), results
     assert results[0].name == "reach pipeline role"
     assert "non-pipeline principal is refused" in by_name(results)
     assert "session tags: ci-run-id" in results[3].detail
@@ -183,11 +182,3 @@ def test_expectations_load(tmp_path: Path) -> None:
 def test_expectation_without_action() -> None:
     with pytest.raises(ValueError, match="without 'action'"):
         Expectations.from_dict({"allowed": [{"resource": "x"}]})
-
-
-def test_summary_counts() -> None:
-    text = summary(
-        [CheckResult("trust", "a", True, "ok"), CheckResult("permissions", "b", False, "no")]
-    )
-    assert "[PASS] trust" in text and "[FAIL] permissions" in text
-    assert text.endswith("1/2 checks passed\n")

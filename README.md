@@ -231,6 +231,22 @@ xacct lint --trust trust.json --policy policy.json --account-id 222222222222
 `--fail-on high|medium|low|never` (default `high`). Explicit Deny statements
 are never findings: they can only remove permissions.
 
+Output: the verdict first, problems grouped by policy (worst first), each with
+how to fix it and the rule code last. Colors only on a terminal (`NO_COLOR=1`
+turns them off). `--output json` keeps a machine-readable list for CI.
+
+```text
+✗ FAIL — 1 high in 1 policy
+
+examples/policies/bad-permissions.json
+  ✗ HIGH   iam:PassRole on Resource "*" can pass any role
+           Fix: Scope Resource to the exact role ARNs and add  "StringEquals": {"iam:PassedToService": "<service>"}
+           (XA013 · statement PassAnything)
+```
+
+Try it: `xacct lint --policy examples/policies/bad-permissions.json` (exit `3`),
+`xacct lint --trust examples/policies/deploy-trust.json --account-id 222222222222` (exit `0`).
+
 **Plan limitation:** policies that depend on values created during apply
 (a generated ExternalId, a new bucket ARN) show as "known after apply" in the
 plan and are skipped with a warning. Lint the live roles after apply
@@ -253,6 +269,24 @@ or the `expectations` Terraform output, so they are built from the same names
 Terraform used ([e2e/aws/outputs.tf](e2e/aws/outputs.tf)). The simulator
 evaluates identity policies, the permissions boundary and explicit denies;
 it does not evaluate SCPs or resource policies.
+
+Output: the verdict first, then "Who can get in" (every trust check, always
+listed) and "What the role can do" (only failures, unless `--details`). A
+failed check shows what AWS answered. `--report FILE` writes every result as JSON.
+
+```text
+✓ PASS — 20 of 20 checks
+
+Who can get in  5/5 ✓
+  ✓ You can reach the pipeline role
+  ✓ Without ExternalId → refused
+  ✓ Wrong ExternalId → refused
+  ✓ Correct ExternalId → accepted
+  ✓ Someone else with the right ExternalId → refused
+
+What the role can do  15/15 ✓
+  (15 passed; --details lists them)
+```
 
 ### Exit codes (all commands)
 
@@ -304,7 +338,8 @@ it does not evaluate SCPs or resource policies.
 pip install -e ".[dev]"
 ruff check . && ruff format --check .
 mypy
-pytest                                  # 112 tests, coverage gate 90%
+pytest                                  # 125 tests, coverage gate 90%
+pytest tests/test_render.py -v          # just the human-readable output
 (cd modules/deploy-role && terraform init -backend=false && terraform test)    # 18 tests
 (cd modules/pipeline-role && terraform init -backend=false && terraform test)  # 10 tests
 ```

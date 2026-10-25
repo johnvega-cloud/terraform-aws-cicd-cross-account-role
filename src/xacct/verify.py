@@ -97,7 +97,7 @@ def check_trust(
 
     def add(name: str, passed: bool, detail: str) -> None:
         results.append(CheckResult("trust", name, passed, detail))
-        log.info("%s %s: %s", "PASS" if passed else "FAIL", name, detail)
+        log.debug("%s %s: %s", "PASS" if passed else "FAIL", name, detail)
 
     pipeline = base_session
     if via_role_arn:
@@ -173,7 +173,7 @@ def check_permissions(
             passed = allowed == want_allowed
             name = ("allowed: " if want_allowed else "denied: ") + check.label()
             results.append(CheckResult("permissions", name, passed, decision))
-            log.info("%s %s -> %s", "PASS" if passed else "FAIL", name, decision)
+            log.debug("%s %s -> %s", "PASS" if passed else "FAIL", name, decision)
     return results
 
 
@@ -205,13 +205,3 @@ def _simulate(iam: Any, role_arn: str, check: ActionCheck) -> str:
     if "explicitDeny" in decisions:
         return "explicitDeny"
     return "allowed" if all(d == "allowed" for d in decisions) else "implicitDeny"
-
-
-def summary(results: list[CheckResult]) -> str:
-    lines = []
-    for r in results:
-        mark = "PASS" if r.passed else "FAIL"
-        lines.append(f"[{mark}] {r.group:<11} {r.name} -> {r.detail}")
-    failed = sum(not r.passed for r in results)
-    lines.append(f"{len(results) - failed}/{len(results)} checks passed")
-    return "\n".join(lines) + "\n"

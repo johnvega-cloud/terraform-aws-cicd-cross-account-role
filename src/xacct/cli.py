@@ -24,6 +24,7 @@ from xacct.lint import (
     documents_from_role,
     lint,
 )
+from xacct.render import render_lint, render_verify, use_color
 from xacct.sts import (
     BOTO_CONFIG,
     AssumeError,
@@ -37,7 +38,7 @@ from xacct.sts import (
     session_name_from_env,
     write_github_env,
 )
-from xacct.verify import Expectations, check_permissions, check_trust, summary
+from xacct.verify import Expectations, check_permissions, check_trust
 
 log = logging.getLogger("xacct")
 
@@ -142,7 +143,9 @@ def build_parser() -> argparse.ArgumentParser:
         "--access-analyzer", action="store_true", help="also run IAM Access Analyzer ValidatePolicy"
     )
     lp.add_argument("--fail-on", choices=("low", "medium", "high", "never"), default="high")
-    lp.add_argument("--output", choices=("text", "json"), default="text")
+    lp.add_argument(
+        "--output", choices=("text", "json"), default="text", help="json: for machines/CI"
+    )
 
     v = sub.add_parser("verify", parents=[common, target], help="live checks after apply")
     v.add_argument("--expectations", type=Path, help="JSON: {allowed: [...], denied: [...]}")
@@ -156,6 +159,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="profile with iam:SimulatePrincipalPolicy in the target account (default: --profile)",
     )
     v.add_argument("--report", type=Path, help="also write results as JSON")
+    v.add_argument(
+        "--details", action="store_true", help="also list passing checks and what AWS answered"
+    )
     return parser
 
 
@@ -265,18 +271,14 @@ def cmd_lint(args: argparse.Namespace) -> int:
         aa = session.client("accessanalyzer", config=BOTO_CONFIG)
         findings += access_analyzer_findings(aa, docs)
 
+    threshold = None if args.fail_on == "never" else Severity.parse(args.fail_on)
     if args.output == "json":
         sys.stdout.write(json.dumps([f.to_dict() for f in findings], indent=2) + "\n")
     else:
-        for f in findings:
-            sys.stdout.write(
-                f"{f.severity.name:<6} {f.rule:<8} {f.document} [{f.sid}] {f.message}\n"
-            )
-        sys.stdout.write(f"{len(docs)} documents, {len(findings)} findings\n")
+        sys.stdout.write(render_lint(findings, len(docs), threshold, color=use_color(sys.stdout)))
 
-    if args.fail_on == "never":
+    if threshold is None:
         return EXIT_OK
-    threshold = Severity.parse(args.fail_on)
     return EXIT_FAILED if any(f.severity >= threshold for f in findings) else EXIT_OK
 
 
@@ -321,7 +323,7 @@ def cmd_verify(args: argparse.Namespace) -> int:
             sim.client("iam", config=BOTO_CONFIG), args.role_arn, expectations
         )
 
-    sys.stdout.write(summary(results))
+    sys.stdout.write(render_verify(results, details=args.details, color=use_color(sys.stdout)))
     if args.report:
         args.report.write_text(
             json.dumps([r.to_dict() for r in results], indent=2) + "\n", encoding="utf-8"
