@@ -161,7 +161,7 @@ def assume_role(
         raise AssumeError(f"AssumeRole {role_arn} failed: {code}{hint}", denied=denied) from exc
 
     c = resp["Credentials"]
-    log.info("assumed %s as %s until %s", role_arn, params["RoleSessionName"], c["Expiration"])
+    log.debug("assumed %s as %s until %s", role_arn, params["RoleSessionName"], c["Expiration"])
     return Credentials(
         access_key_id=c["AccessKeyId"],
         secret_access_key=c["SecretAccessKey"],

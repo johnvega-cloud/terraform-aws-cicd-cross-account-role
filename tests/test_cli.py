@@ -32,14 +32,17 @@ def write(tmp_path: Path, name: str, data: Any) -> Path:
 
 def test_lint_clean_file(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     assert cli.main(["lint", "--policy", str(write(tmp_path, "p.json", NARROW))]) == cli.EXIT_OK
-    assert "1 documents, 0 findings" in capsys.readouterr().out
+    assert capsys.readouterr().out == "✓ PASS — no problems in 1 policy\n"
 
 
 def test_lint_findings_fail(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     path = write(tmp_path, "p.json", WIDE)
     assert cli.main(["lint", "--policy", str(path)]) == cli.EXIT_FAILED
-    assert "HIGH   XA010" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert out.startswith("✗ FAIL — 1 high in 1 policy")
+    assert "(XA010 · statement #0)" in out and "Fix: " in out
     assert cli.main(["lint", "--policy", str(path), "--fail-on", "never"]) == cli.EXIT_OK
+    assert capsys.readouterr().out.startswith("! PASS with warnings")
 
 
 def test_lint_fail_on_threshold(tmp_path: Path) -> None:
@@ -270,7 +273,8 @@ def test_verify_all_pass(
     rc = cli.main(["verify", "--tf-output", str(tf_output(tmp_path)), "--report", str(report)])
     out = capsys.readouterr().out
     assert rc == cli.EXIT_OK, out
-    assert out.endswith("7/7 checks passed\n")
+    assert out.startswith("✓ PASS — 7 of 7 checks")
+    assert "Who can get in  5/5" in out and "(2 passed; --details lists them)" in out
     assert len(json.loads(report.read_text())) == 7
 
 
