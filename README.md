@@ -339,7 +339,7 @@ pip install -e ".[dev]"
 ruff check . && ruff format --check .
 mypy
 pytest                                  # 125 tests, coverage gate 90%
-pytest tests/test_render.py -v          # just the human-readable output
+pytest tests/test_render.py -v --no-cov # one file: skip the gate (it is for the full suite)
 (cd modules/deploy-role && terraform init -backend=false && terraform test)    # 18 tests
 (cd modules/pipeline-role && terraform init -backend=false && terraform test)  # 10 tests
 ```

@@ -21,8 +21,8 @@ Try it (from the repository root, with the venv active):
     xacct verify --tf-output e2e/aws/out.json --region us-east-1
     xacct verify --tf-output e2e/aws/out.json --region us-east-1 --details
 
-    # unit tests for this module
-    pytest tests/test_render.py -v
+    # unit tests for this module (--no-cov: the 90% coverage gate is for the full suite)
+    pytest tests/test_render.py -v --no-cov
 """
 
 from __future__ import annotations

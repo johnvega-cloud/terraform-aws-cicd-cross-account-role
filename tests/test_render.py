@@ -1,6 +1,7 @@
 """Tests for the human-readable output (src/xacct/render.py).
 
-Run them:            pytest tests/test_render.py -v
+Run them:            pytest tests/test_render.py -v --no-cov
+                     (--no-cov: the 90% coverage gate applies to the full suite only)
 See the real output: xacct lint --policy examples/policies/bad-permissions.json
 """
 
